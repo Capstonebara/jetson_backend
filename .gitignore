@@ -1,0 +1,31 @@
+# Build artifacts
+/build/
+/cmake-build-debug/
+/cmake-build-release/
+
+# C++ object files and binaries
+*.o
+*.obj
+*.so
+*.dll
+*.dylib
+*.exe
+*.out
+
+# Debug files
+*.dSYM/
+*.pdb
+
+# CMake generated files
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+Makefile
+
+# Temporary and backup files
+*~
+*.swp
+*.swo
+
+# VSCode settings (if you want to version-control them, remove these lines)
+.vscode/
