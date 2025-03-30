@@ -24,12 +24,12 @@ Hệ thống yêu cầu dữ liệu embeddings của khuôn mặt được lưu 
 ``` /home/jetson/face_recognition/embedding/ ```
 
 Mỗi thư mục con bên trong chứa các tệp JSON của người dùng với định dạng:
-
+```
 [UserCode] Username/
     ├── face_1.json
     ├── face_2.json
     ├── ...
-
+```
 Mỗi tệp JSON chứa vector đặc trưng khuôn mặt của người đó. (512D)
 
 3. Thêm người dùng từ thư mục embeddings
