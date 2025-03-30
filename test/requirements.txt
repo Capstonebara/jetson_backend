@@ -1,0 +1,9 @@
+numpy
+opencv-python
+torch
+torchvision
+torchaudio
+pytz
+Pillow
+facenet-pytorch
+faiss-cpu
