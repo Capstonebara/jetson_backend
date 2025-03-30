@@ -1,6 +1,6 @@
-Hệ thống nhận diện khuôn mặt sử dụng ```facenet-pytorch``` và ```faiss``` để trích xuất và tìm kiếm đặc trưng khuôn mặt trong thời gian thực.
+# Hệ thống nhận diện khuôn mặt sử dụng ```facenet-pytorch``` và ```faiss``` để trích xuất và tìm kiếm đặc trưng khuôn mặt trong thời gian thực.
 
-Công Nghệ Sử Dụng
+## Công Nghệ Sử Dụng
 
 - Nhận diện khuôn mặt: Sử dụng ```MTCNN``` từ ```facenet-pytorch``` để phát hiện khuôn mặt trong ảnh/video.
 
@@ -8,7 +8,7 @@ Công Nghệ Sử Dụng
 
 - So sánh và tìm kiếm: Sử dụng ```faiss.IndexFlatL2``` để lưu trữ và tìm kiếm các embeddings dựa trên khoảng cách L2.
 
-Cài Đặt
+## Cài Đặt
 
 1. Cài đặt các thư viện
 
@@ -41,7 +41,7 @@ Trước khi chạy nhận diện, hệ thống sẽ tự động tải dữ li�
 python main.py
 ```
 
-Ghi Nhận Lịch Sử Nhận Diện
+## Ghi Nhận Lịch Sử Nhận Diện
 
 Khi một người dùng được nhận diện, thông tin sẽ được lưu vào tệp CSV:
 
