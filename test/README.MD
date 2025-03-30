@@ -49,9 +49,9 @@ Khi một người dùng được nhận diện, thông tin sẽ được lưu v
 
 Thông tin bao gồm:
 
-ID: Mã người dùng
+- ID: Mã người dùng
 
-Username: Tên người dùng
+- Username: Tên người dùng
 
-Timestamp (GMT+7): Thời gian nhận diện
+- Timestamp (GMT+7): Thời gian nhận diện
 
