@@ -6,7 +6,9 @@ import faiss
 import numpy as np
 from PIL import Image
 from torchvision import transforms
-from facenet_pytorch import MTCNN, InceptionResnetV1
+from facenet_pytorch import InceptionResnetV1, MTCNN
+from detection_model.ssdlite320_mobilenet_v3 import FaceDetectionModel
+from embedding_model.EdgeFaceKan import EdgeFaceKAN 
 from typing import List, Tuple, Dict
 import csv
 from datetime import datetime
@@ -14,7 +16,7 @@ import pytz
 from collections import deque
 
 def gstreamer_pipeline(
-    sensor_id=0,
+    sensor_id=1,
     capture_width=1920,
     capture_height=1080,
     display_width=960,
@@ -40,28 +42,74 @@ def gstreamer_pipeline(
         )
     )
 
+def usb_gstreamer_pipeline(device_id):
+    return (
+        f"v4l2src device=/dev/video{device_id} ! "
+        "video/x-raw, width=(int)640, height=(int)480, framerate=(fraction)30/1 ! "
+        "videoconvert ! "
+        "video/x-raw, format=(string)BGR ! appsink"
+    )
+
+def csi_gstreamer_pipeline(sensor_id):
+    return gstreamer_pipeline(sensor_id=sensor_id)
+
 class FaceRecognitionPipeline:
-    def __init__(self, device="cuda" if torch.cuda.is_available() else "cpu"):
+    def __init__(self, device="cuda" if torch.cuda.is_available() else "cpu", 
+                 model_type="kanface", detector_type="ssdlite"):
         self.device = device
-        self.mtcnn = MTCNN(
-            keep_all=True,
-            device=self.device,
-            min_face_size=120,
-            thresholds=[0.6, 0.7, 0.7],
-        )
-        self.facenet = InceptionResnetV1(pretrained="vggface2").eval().to(self.device)
-        self.dimension = 512
-        self.index = faiss.IndexFlatL2(self.dimension)
-        self.transform = transforms.Compose(
-            [
+        
+        # Initialize the selected face detector
+        self.detector_type = detector_type.lower()
+        
+        if self.detector_type == "ssdlite":
+            # Initialize SSDLite320 MobileNet V3 detector
+            print("Using SSDLite320 MobileNet V3 for face detection")
+            self.face_detector = FaceDetectionModel(device=self.device)
+            self.face_detector.load_weights("./detection_model/face_detection3_epoch200_loss0.1802.pth")
+        elif self.detector_type == "mtcnn":
+            # Initialize MTCNN detector
+            print("Using MTCNN for face detection")
+            self.face_detector = MTCNN(keep_all=True, device=self.device)
+        else:
+            raise ValueError(f"Unknown detector type: {detector_type}. Choose 'ssdlite' or 'mtcnn'.")
+        
+        # Initialize the selected embedding model
+        self.model_type = model_type.lower()
+        
+        if self.model_type == "kanface":
+            # Initialize KANFace model
+            print("Using KANFace (EdgeFaceKAN) model")
+            self.embedding_model = EdgeFaceKAN(num_features=512, grid_size=30, rank_ratio=0.5, neuron_fun="mean")
+            checkpoint = torch.load("./embedding_model/EdgeFaceKAN_mean_05_30_arc_512/model.pt", map_location=self.device)
+            self.embedding_model.load_state_dict(checkpoint)
+            self.embedding_model = self.embedding_model.eval().to(self.device)
+            
+            # KANFace transforms (112x112)
+            self.transform = transforms.Compose([
+                transforms.Resize((112, 112)),
+                transforms.ToTensor(),
+                transforms.Normalize(mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5]),
+            ])
+        elif self.model_type == "facenet":
+            # Initialize FaceNet model
+            print("Using FaceNet (InceptionResnetV1) model")
+            self.embedding_model = InceptionResnetV1(pretrained="vggface2").eval().to(self.device)
+            
+            # FaceNet transforms (160x160)
+            self.transform = transforms.Compose([
                 transforms.Resize((160, 160)),
                 transforms.ToTensor(),
                 transforms.Normalize(mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5]),
-            ]
-        )
+            ])
+        else:
+            raise ValueError(f"Unknown model type: {model_type}. Choose 'kanface' or 'facenet'.")
+        
+        # Rest of your initialization remains the same
+        self.dimension = 512
+        self.index = faiss.IndexFlatL2(self.dimension)
         self.labels = []
         self.label_ranges = {}
-        self.usernames = {}  # Store usercode -> username mapping
+        self.usernames = {}
         self.csv_file = "recognized_users.csv"
         self.initialize_csv()
         self.recognized_users = set()
@@ -142,11 +190,15 @@ class FaceRecognitionPipeline:
             print(f"Error processing directory {directory_name}: {str(e)}")
 
     def detect_faces(self, image: np.ndarray) -> List[Tuple[int, int, int, int]]:
-        boxes, _ = self.mtcnn.detect(image)
+        if self.detector_type == "ssdlite":
+            boxes = self.face_detector.detect_faces(image)
+        elif self.detector_type == "mtcnn":
+            boxes, _ = self.face_detector.detect(image)
+            boxes = boxes.tolist() if boxes is not None else []
         return boxes
 
     def recognize_face(
-        self, image: np.ndarray, threshold: float = 0.7
+        self, image: np.ndarray, threshold: float = 0.6
     ) -> List[Tuple[Tuple[int, int, int, int], str, float]]:
         boxes = self.detect_faces(image)
         results = []
@@ -182,11 +234,26 @@ class FaceRecognitionPipeline:
     def get_embedding(self, face_image: Image.Image) -> np.ndarray:
         face_tensor = self.transform(face_image).unsqueeze(0).to(self.device)
         with torch.no_grad():
-            embedding = self.facenet(face_tensor)
+            embedding = self.embedding_model(face_tensor)
         return embedding.cpu().numpy()
-    def real_time_recognition(self):
+
+    def real_time_recognition(self, camera_method=None):
         """Start real-time face recognition using webcam"""
-        cap  = cv2.VideoCapture(gstreamer_pipeline(flip_method=0), cv2.CAP_GSTREAMER)
+        # Use the method that works according to the test
+        if camera_method == "cv2.VideoCapture(0)":
+            cap = cv2.VideoCapture(0)
+        elif camera_method == "usb_gstreamer_pipeline(0)":
+            cap = cv2.VideoCapture(usb_gstreamer_pipeline(0), cv2.CAP_GSTREAMER)
+        elif camera_method == "usb_gstreamer_pipeline(1)":
+            cap = cv2.VideoCapture(usb_gstreamer_pipeline(1), cv2.CAP_GSTREAMER)
+        elif camera_method == "csi_gstreamer_pipeline(0)":
+            cap = cv2.VideoCapture(csi_gstreamer_pipeline(0), cv2.CAP_GSTREAMER)
+        elif camera_method == "csi_gstreamer_pipeline(1)":
+            cap = cv2.VideoCapture(csi_gstreamer_pipeline(1), cv2.CAP_GSTREAMER)
+        else:
+            # Default to direct OpenCV if no method specified or unknown method
+            cap = cv2.VideoCapture(0)
+
         if not cap.isOpened():
             print("Error: Could not open webcam.")
             return
@@ -240,12 +307,46 @@ class FaceRecognitionPipeline:
         cap.release()
         cv2.destroyAllWindows()
 
+    def test_camera_access(self):
+        """Test different camera access methods"""
+        print("Testing camera access...")
+        
+        # Test direct OpenCV access
+        for i in range(2):
+            cap = cv2.VideoCapture(i)
+            if cap.isOpened():
+                print(f"Direct OpenCV access with index {i} works!")
+                cap.release()
+                return f"cv2.VideoCapture({i})"
+        
+        # Test USB GStreamer
+        for i in range(2):
+            cap = cv2.VideoCapture(usb_gstreamer_pipeline(i), cv2.CAP_GSTREAMER)
+            if cap.isOpened():
+                print(f"USB GStreamer with device {i} works!")
+                cap.release()
+                return f"usb_gstreamer_pipeline({i})"
+        
+        # Test CSI GStreamer
+        for i in range(2):
+            cap = cv2.VideoCapture(csi_gstreamer_pipeline(i), cv2.CAP_GSTREAMER)
+            if cap.isOpened():
+                print(f"CSI GStreamer with sensor {i} works!")
+                cap.release()
+                return f"csi_gstreamer_pipeline({i})"
+        
+        print("All camera access methods failed")
+        return None
+
 # Main script
 if __name__ == "__main__":
     pipeline = FaceRecognitionPipeline()
 
+    # First test camera access
+    pipeline.test_camera_access()
+
     # Add known faces from embedding directories
-    embedding_root = "/home/jetson/face_recognition/embedding/"
+    embedding_root = "./embedding"
     
     for user_folder in os.listdir(embedding_root):
         folder_path = os.path.join(embedding_root, user_folder)
