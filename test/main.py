@@ -5,7 +5,7 @@ import torch
 import faiss
 import numpy as np
 from PIL import Image
-from torchvision import transforms
+from torchvision import transforms, models
 from facenet_pytorch import InceptionResnetV1, MTCNN
 from detection_model.ssdlite320_mobilenet_v3 import FaceDetectionModel
 from embedding_model.EdgeFaceKan import EdgeFaceKAN 
@@ -55,7 +55,7 @@ def csi_gstreamer_pipeline(sensor_id):
 
 class FaceRecognitionPipeline:
     def __init__(self, device="cuda" if torch.cuda.is_available() else "cpu", 
-                 model_type="kanface", detector_type="ssdlite"):
+                 model_type="kanface", detector_type="mtcnn"):
         self.device = device
         
         # Initialize the selected face detector
@@ -65,7 +65,11 @@ class FaceRecognitionPipeline:
             # Initialize SSDLite320 MobileNet V3 detector
             print("Using SSDLite320 MobileNet V3 for face detection")
             self.face_detector = FaceDetectionModel(device=self.device)
-            self.face_detector.load_weights("./detection_model/face_detection3_epoch200_loss0.1802.pth")
+            checkpoint = torch.load("./detection_model/face_detection3_epoch200_loss0.1802.pth", map_location=self.device)
+            checkpoint = {k.replace("module.", ""): v for k, v in checkpoint.items()}
+            self.face_detector.load_state_dict(checkpoint)
+            self.face_detector.eval().to(device)
+
         elif self.detector_type == "mtcnn":
             # Initialize MTCNN detector
             print("Using MTCNN for face detection")
@@ -191,11 +195,45 @@ class FaceRecognitionPipeline:
 
     def detect_faces(self, image: np.ndarray) -> List[Tuple[int, int, int, int]]:
         if self.detector_type == "ssdlite":
-            boxes = self.face_detector.detect_faces(image)
+            # Get original image dimensions
+            orig_height, orig_width = image.shape[:2]
+            
+            transform = transforms.Compose([
+                transforms.ToTensor(),
+                transforms.Resize((320, 320)), 
+                transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+            ])
+
+            img_t = transform(image).unsqueeze(0).to(self.device)
+
+            # Detect faces on the resized image
+            detections = self.face_detector(img_t)
+            boxes = detections[0][0]
+            scores = detections[1][0]
+            
+            # Filter boxes by score
+            mask = scores > 0.95
+            filtered_boxes = boxes[mask]
+            
+            # Scale boxes to original image dimensions
+            scale_x = orig_width / 320
+            scale_y = orig_height / 320
+
+            if len(filtered_boxes) > 0:
+                scaled_boxes = torch.stack([
+                    filtered_boxes[:, 0] * scale_x,
+                    filtered_boxes[:, 1] * scale_y,
+                    filtered_boxes[:, 2] * scale_x,
+                    filtered_boxes[:, 3] * scale_y,
+                ], dim=1).tolist()
+                return scaled_boxes
+            return []
+            
         elif self.detector_type == "mtcnn":
             boxes, _ = self.face_detector.detect(image)
             boxes = boxes.tolist() if boxes is not None else []
-        return boxes
+            return boxes
+        return []
 
     def recognize_face(
         self, image: np.ndarray, threshold: float = 0.6
@@ -219,6 +257,8 @@ class FaceRecognitionPipeline:
                                 break
                     results.append((boxes[i], recognized_label, distance[0]))
         return results
+
+
     def update_recognition_history(self, label: str, confidence: float) -> bool:
         if label not in self.recognition_history:
             self.recognition_history[label] = deque(maxlen=self.history_length)
@@ -264,8 +304,25 @@ class FaceRecognitionPipeline:
                 print("Error: Couldn't fetch the frame.")
                 break
 
+            # Add this line to check frame size
+            print(f"Frame dimensions: {frame.shape}")
+
             results = self.recognize_face(frame)
             
+            # if self.detector_type == "ssdlite":
+            #     scaled_boxes = self.detect_faces(frame)
+
+            #     for i in range(len(scaled_boxes)):
+            #         x1, y1, x2, y2 = map(int, scaled_boxes[i])
+            #         cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
+
+            # if self.detector_type == "mtcnn":
+            #     boxes = self.detect_faces(frame)
+            #     for box in boxes:
+            #         x1, y1, x2, y2 = map(int, box)
+            #         cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
+
+
             for box, label, distance in results:
                 if distance > self.confidence_threshold:
                     label = "Unknown"
@@ -340,7 +397,7 @@ class FaceRecognitionPipeline:
 
 # Main script
 if __name__ == "__main__":
-    pipeline = FaceRecognitionPipeline()
+    pipeline = FaceRecognitionPipeline(detector_type="ssdlite", model_type="kanface")
 
     # First test camera access
     pipeline.test_camera_access()
