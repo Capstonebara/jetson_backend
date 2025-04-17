@@ -1,26 +1,23 @@
 cmake_minimum_required(VERSION 3.10)
 project(FaceRecognitionSystem)
 
-# set(CMAKE_PREFIX_PATH 
-#     "/home/jetson/miniforge-pypy3/envs/capstone/lib/python3.6/site-packages/torch/share/cmake"
-#     "/home/jetson/miniforge-pypy3/envs/capstone/share/cmake/TorchVision/"
-# )
-# set(OpenCV_DIR ~/opencv-4.5.2/build)
-set(CMAKE_CXX_STANDARD 17)
-set(CMAKE_CXX_STANDARD_REQUIRED True)
+set(CMAKE_PREFIX_PATH 
+    "$ENV{CONDA_PREFIX}/lib/python3.6/site-packages/torch/share/cmake/Torch/" 
+    # "$ENV{CONDA_PREFIX}/capstone/share/cmake/TorchVision/" 
+)
 
 find_package(OpenCV REQUIRED)
 find_package(Torch REQUIRED)
 find_package(TorchVision REQUIRED)
 find_package(TIFF REQUIRED)
 
-# file(GLOB_RECURSE SRC_FILES main.cpp src/*.cpp)
-# file(GLOB_RECURSE SRC_FILES main.cpp)
-file(GLOB_RECURSE SRC_FILES src/utils/*.cpp test/test_load_detector.cpp)
-
-add_executable(main ${SRC_FILES})
+file(GLOB_RECURSE SRC_FILES src/utils/*.cpp)
+add_executable(main ${SRC_FILES} main.cpp)
+# add_executable(main src/detection_with_caffee.cpp)
 
 include_directories(include)
 
-target_link_libraries(main "${OpenCV_LIBS}" "${TORCH_LIBRARIES}" TorchVision::TorchVision  TIFF::TIFF)
-
+# Link OpenCV, Torch, and TIFF
+target_compile_features(main PUBLIC cxx_range_for)
+target_link_libraries(main PRIVATE "${OpenCV_LIBS}" "${TORCH_LIBRARIES}" TorchVision::TorchVision TIFF::TIFF)
+set_property(TARGET main PROPERTY CXX_STANDARD 14)
