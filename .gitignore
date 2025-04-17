@@ -29,3 +29,13 @@ Makefile
 
 # VSCode settings (if you want to version-control them, remove these lines)
 .vscode/
+
+# Ignore recognized_users.csv
+recognized_users.csv
+
+# Ignore Python bytecode
+__pycache__/
+**/__pycache__/
+
+# Ignore embedding directory and its contents
+embedding/
