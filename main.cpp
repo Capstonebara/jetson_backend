@@ -1,10 +1,8 @@
 #include <iostream>
 #include <opencv2/opencv.hpp>
-#include <torch/script.h>
-#include <torch/torch.h>
-#include <torchvision/vision.h>
-#include <utils/camera.h>
-#include <utils/cli.h>
+#include <camera.h>
+#include <cli.h>
+#include <model.h>
 
 int main(int argc, const char* argv[]) {
     cli::Args args{argc, argv};
@@ -13,36 +11,14 @@ int main(int argc, const char* argv[]) {
     int width = std::stoi(args.get("--width", "640"));
     int height = std::stoi(args.get("--height", "480"));
     int frame_skip = 2;  // Process every 2nd frame
+    model::run_res10(camera_id, width, height, frame_skip);
+    // model::run_kanface(camera_id, width, height, frame_skip);
+
 
     // Initialize camera with simpler pipeline
-    // cv::VideoCapture cap;
-    //
-    // // Try a few different ways to open the camera
-    // if (!cap.open(camera::gstreamer_pipeline(camera_id, width, height), cv::CAP_GSTREAMER)) {
-    //     std::cerr << "Failed to open with GStreamer pipeline, trying standard camera API" << std::endl;
-    //     if (!cap.open(camera_id)) {
-    //         std::cerr << "Failed to open camera with any method" << std::endl;
-    //         return -1;
-    //     }
-    // }
 
     // Load TorchScript model
-    torch::Device device = torch::cuda::is_available() ? torch::Device(torch::kCUDA) : torch::Device(torch::kCPU);
-
-    torch::jit::script::Module model;
-    try {
-        // Load the TorchScript model
-        std::cout << "Loading TorchScript model..." << std::endl;
-        model = torch::jit::load(model_path);
-        model.eval();
-        model.to(device);
-        std::cout << "Using CUDA for model inference" << std::endl;
-
-    } catch (const c10::Error& e) {
-        std::cerr << "Error loading TorchScript model: " << e.what() << std::endl;
-        return -1;
-    }
-
+    //
     // // Create window
     // cv::namedWindow("Camera", cv::WINDOW_AUTOSIZE);
     //

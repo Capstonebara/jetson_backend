@@ -1,4 +1,4 @@
-#include <utils/camera.h>
+#include <camera.h>
 #include <sstream>
 
 std::string camera::gstreamer_pipeline(int sensor_id, int width, int height) {
@@ -12,3 +12,4 @@ std::string camera::gstreamer_pipeline(int sensor_id, int width, int height) {
              << "appsink sync=false drop=true max-buffers=2";
     return pipeline.str();
 }
+

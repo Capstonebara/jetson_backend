@@ -1,4 +1,5 @@
 # Build artifacts
+/results/
 /build/
 /cmake-build-debug/
 /cmake-build-release/
