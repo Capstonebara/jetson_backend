@@ -15,43 +15,43 @@ from datetime import datetime
 import pytz
 from collections import deque
 
-def gstreamer_pipeline(
-    sensor_id=1,
-    capture_width=1920,
-    capture_height=1080,
-    display_width=960,
-    display_height=540,
-    framerate=30,
-    flip_method=0,
-):
-    return (
-        "nvarguscamerasrc sensor-id=%d ! "
-        "video/x-raw(memory:NVMM), width=(int)%d, height=(int)%d, framerate=(fraction)%d/1 ! "
-        "nvvidconv flip-method=%d ! "
-        "video/x-raw, width=(int)%d, height=(int)%d, format=(string)BGRx ! "
-        "videoconvert ! "
-        "video/x-raw, format=(string)BGR ! appsink"
-        % (
-            sensor_id,
-            capture_width,
-            capture_height,
-            framerate,
-            flip_method,
-            display_width,
-            display_height,
-        )
-    )
+# def gstreamer_pipeline(
+#     sensor_id=1,
+#     capture_width=1920,
+#     capture_height=1080,
+#     display_width=960,
+#     display_height=540,
+#     framerate=30,
+#     flip_method=0,
+# ):
+#     return (
+#         "nvarguscamerasrc sensor-id=%d ! "
+#         "video/x-raw(memory:NVMM), width=(int)%d, height=(int)%d, framerate=(fraction)%d/1 ! "
+#         "nvvidconv flip-method=%d ! "
+#         "video/x-raw, width=(int)%d, height=(int)%d, format=(string)BGRx ! "
+#         "videoconvert ! "
+#         "video/x-raw, format=(string)BGR ! appsink"
+#         % (
+#             sensor_id,
+#             capture_width,
+#             capture_height,
+#             framerate,
+#             flip_method,
+#             display_width,
+#             display_height,
+#         )
+#     )
 
-def usb_gstreamer_pipeline(device_id):
-    return (
-        f"v4l2src device=/dev/video{device_id} ! "
-        "video/x-raw, width=(int)640, height=(int)480, framerate=(fraction)30/1 ! "
-        "videoconvert ! "
-        "video/x-raw, format=(string)BGR ! appsink"
-    )
+# def usb_gstreamer_pipeline(device_id):
+#     return (
+#         f"v4l2src device=/dev/video{device_id} ! "
+#         "video/x-raw, width=(int)640, height=(int)480, framerate=(fraction)60/1 ! "
+#         "videoconvert ! "
+#         "video/x-raw, format=(string)BGR ! appsink"
+#     )
 
-def csi_gstreamer_pipeline(sensor_id):
-    return gstreamer_pipeline(sensor_id=sensor_id)
+# def csi_gstreamer_pipeline(sensor_id):
+#     return gstreamer_pipeline(sensor_id=sensor_id)
 
 class FaceRecognitionPipeline:
     def __init__(self, device="cuda" if torch.cuda.is_available() else "cpu", 
@@ -83,8 +83,8 @@ class FaceRecognitionPipeline:
         if self.model_type == "kanface":
             # Initialize KANFace model
             print("Using KANFace (EdgeFaceKAN) model")
-            self.embedding_model = EdgeFaceKAN(num_features=512, grid_size=30, rank_ratio=0.5, neuron_fun="mean")
-            checkpoint = torch.load("./embedding_model/EdgeFaceKAN_mean_05_30_arc_512/model.pt", map_location=self.device)
+            self.embedding_model = EdgeFaceKAN(num_features=512, grid_size=15, rank_ratio=0.5, neuron_fun="mean")
+            checkpoint = torch.load("./embedding_model/EdgeFaceKAN_mean_05_15_arc_512/model.pt", map_location=self.device)
             self.embedding_model.load_state_dict(checkpoint)
             self.embedding_model = self.embedding_model.eval().to(self.device)
             
@@ -212,7 +212,7 @@ class FaceRecognitionPipeline:
             scores = detections[1][0]
             
             # Filter boxes by score
-            mask = scores > 0.95
+            mask = scores > 0.75
             filtered_boxes = boxes[mask]
             
             # Scale boxes to original image dimensions
@@ -280,20 +280,21 @@ class FaceRecognitionPipeline:
     def real_time_recognition(self, camera_method=None):
         """Start real-time face recognition using webcam"""
         # Use the method that works according to the test
-        if camera_method == "cv2.VideoCapture(0)":
-            cap = cv2.VideoCapture(0)
-        elif camera_method == "usb_gstreamer_pipeline(0)":
-            cap = cv2.VideoCapture(usb_gstreamer_pipeline(0), cv2.CAP_GSTREAMER)
-        elif camera_method == "usb_gstreamer_pipeline(1)":
-            cap = cv2.VideoCapture(usb_gstreamer_pipeline(1), cv2.CAP_GSTREAMER)
-        elif camera_method == "csi_gstreamer_pipeline(0)":
-            cap = cv2.VideoCapture(csi_gstreamer_pipeline(0), cv2.CAP_GSTREAMER)
-        elif camera_method == "csi_gstreamer_pipeline(1)":
-            cap = cv2.VideoCapture(csi_gstreamer_pipeline(1), cv2.CAP_GSTREAMER)
-        else:
-            # Default to direct OpenCV if no method specified or unknown method
-            cap = cv2.VideoCapture(0)
-
+        # if camera_method == "cv2.VideoCapture(0)":
+        #     cap = cv2.VideoCapture(0)
+        # elif camera_method == "usb_gstreamer_pipeline(0)":
+        #     cap = cv2.VideoCapture(usb_gstreamer_pipeline(0), cv2.CAP_GSTREAMER)
+        # elif camera_method == "usb_gstreamer_pipeline(1)":
+        #     cap = cv2.VideoCapture(usb_gstreamer_pipeline(1), cv2.CAP_GSTREAMER)
+        # elif camera_method == "csi_gstreamer_pipeline(0)":
+        #     cap = cv2.VideoCapture(csi_gstreamer_pipeline(0), cv2.CAP_GSTREAMER)
+        # elif camera_method == "csi_gstreamer_pipeline(1)":
+        #     cap = cv2.VideoCapture(csi_gstreamer_pipeline(1), cv2.CAP_GSTREAMER)
+        # else:
+        #     # Default to direct OpenCV if no method specified or unknown method
+        cap = cv2.VideoCapture(0)
+        cap.set(cv2.CAP_PROP_FRAME_WIDTH, 320)
+        cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 240)
         if not cap.isOpened():
             print("Error: Could not open webcam.")
             return
@@ -364,43 +365,43 @@ class FaceRecognitionPipeline:
         cap.release()
         cv2.destroyAllWindows()
 
-    def test_camera_access(self):
-        """Test different camera access methods"""
-        print("Testing camera access...")
+    # def test_camera_access(self):
+    #     """Test different camera access methods"""
+    #     print("Testing camera access...")
         
-        # Test direct OpenCV access
-        for i in range(2):
-            cap = cv2.VideoCapture(i)
-            if cap.isOpened():
-                print(f"Direct OpenCV access with index {i} works!")
-                cap.release()
-                return f"cv2.VideoCapture({i})"
+    #     # Test direct OpenCV access
+    #     for i in range(2):
+    #         cap = cv2.VideoCapture(i)
+    #         if cap.isOpened():
+    #             print(f"Direct OpenCV access with index {i} works!")
+    #             cap.release()
+    #             return f"cv2.VideoCapture({i})"
         
-        # Test USB GStreamer
-        for i in range(2):
-            cap = cv2.VideoCapture(usb_gstreamer_pipeline(i), cv2.CAP_GSTREAMER)
-            if cap.isOpened():
-                print(f"USB GStreamer with device {i} works!")
-                cap.release()
-                return f"usb_gstreamer_pipeline({i})"
+    #     # Test USB GStreamer
+    #     for i in range(2):
+    #         cap = cv2.VideoCapture(usb_gstreamer_pipeline(i), cv2.CAP_GSTREAMER)
+    #         if cap.isOpened():
+    #             print(f"USB GStreamer with device {i} works!")
+    #             cap.release()
+    #             return f"usb_gstreamer_pipeline({i})"
         
-        # Test CSI GStreamer
-        for i in range(2):
-            cap = cv2.VideoCapture(csi_gstreamer_pipeline(i), cv2.CAP_GSTREAMER)
-            if cap.isOpened():
-                print(f"CSI GStreamer with sensor {i} works!")
-                cap.release()
-                return f"csi_gstreamer_pipeline({i})"
+    #     # Test CSI GStreamer
+    #     for i in range(2):
+    #         cap = cv2.VideoCapture(csi_gstreamer_pipeline(i), cv2.CAP_GSTREAMER)
+    #         if cap.isOpened():
+    #             print(f"CSI GStreamer with sensor {i} works!")
+    #             cap.release()
+    #             return f"csi_gstreamer_pipeline({i})"
         
-        print("All camera access methods failed")
-        return None
+    #     print("All camera access methods failed")
+    #     return None
 
 # Main script
 if __name__ == "__main__":
     pipeline = FaceRecognitionPipeline(detector_type="ssdlite", model_type="kanface")
 
     # First test camera access
-    pipeline.test_camera_access()
+    # pipeline.test_camera_access()
 
     # Add known faces from embedding directories
     embedding_root = "./embedding"
