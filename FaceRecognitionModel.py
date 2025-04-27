@@ -5,9 +5,9 @@ from torchvision import transforms
 from kanface.models.KANFace import KANFace
 
 class FaceRecognitionModel:
-    def __init__(self, model_path: str, device: str = None):
+    def __init__(self, embedding_dim: int, grid_size: int, rank_ratio: float, model_path: str, device: str = None):
         self.device = device or ("cuda" if torch.cuda.is_available() else "cpu")
-        self.model = KANFace(num_features=128, grid_size=25, rank_ratio=0.6, neuron_fun="mean")
+        self.model = KANFace(num_features=embedding_dim, grid_size=grid_size, rank_ratio=rank_ratio, neuron_fun="mean")
         self.model.load_state_dict(torch.load(model_path, map_location=self.device))
         self.model.eval().to(self.device)
         
