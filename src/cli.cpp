@@ -12,7 +12,7 @@ Args::Args(int argc, const char* argv[]) {
 
         m_args[key] = value;
     }
-};
+}
 
 
 size_t Args::size() const {
@@ -22,7 +22,7 @@ size_t Args::size() const {
 std::string Args::get(std::string key, std::string default_value) const {
     auto it = m_args.find(std::string(key));
     return (it != m_args.end()) ? it->second : std::string(default_value);
-}; 
+}
 
 void show_help(std::string binary_name) {
     std::cout << "Usage: " << binary_name << " [--model <path of your model>] [--output <where to save your output>]"<< std::endl;

@@ -1,8 +1,8 @@
 # Build artifacts
-/results/
-/build/
-/cmake-build-debug/
-/cmake-build-release/
+results/
+build/
+cmake-build-debug/
+cmake-build-release/
 
 # C++ object files and binaries
 *.o
@@ -39,4 +39,6 @@ __pycache__/
 **/__pycache__/
 
 # Ignore embedding directory and its contents
-embedding/
+embeddings/
+results/
+result/

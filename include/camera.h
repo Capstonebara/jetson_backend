@@ -5,7 +5,7 @@
 
 namespace camera {
 
-std::string gstreamer_pipeline(int sensor_id=0, int width=640, int height=480);
+std::string gstreamer_pipeline(int sensor_id=0, int width=640, int height=480, int fps=60);
 
 } // namespace camera
 

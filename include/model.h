@@ -17,7 +17,7 @@ namespace model {
 
 void run_res10(int camera_id=0, int width=640, int height=480, int frame_skip=2);
 
-void run_kanface(int camera_id=0, int width=640, int height=480, int frame_skip=2);
+void run_kanface();
 
 
 }

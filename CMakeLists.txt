@@ -1,6 +1,7 @@
 cmake_minimum_required(VERSION 3.10)
 project(FaceRecognitionSystem)
 
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra -Wshadow -Werror -pedantic")
 set(CMAKE_PREFIX_PATH 
     "$ENV{CONDA_PREFIX}/lib/python3.6/site-packages/torch/share/cmake/Torch/" 
     # "$ENV{CONDA_PREFIX}/capstone/share/cmake/TorchVision/" 
@@ -18,5 +19,5 @@ include_directories(include)
 
 # Link OpenCV, Torch, and TIFF
 target_compile_features(main PUBLIC cxx_range_for)
-target_link_libraries(main PRIVATE "${OpenCV_LIBS}" "${TORCH_LIBRARIES}" TorchVision::TorchVision )
+target_link_libraries(main PRIVATE "${OpenCV_LIBS}" "${TORCH_LIBRARIES}" TorchVision::TorchVision)
 set_property(TARGET main PROPERTY CXX_STANDARD 14)

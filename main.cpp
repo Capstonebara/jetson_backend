@@ -1,33 +1,69 @@
 #include <iostream>
+#include <sstream>
 #include <opencv2/opencv.hpp>
 #include <camera.h>
 #include <cli.h>
-#include <model.h>
+#include <chrono>
+#include <utils.h>
+// #include <model.h>
 
 int main(int argc, const char* argv[]) {
     cli::Args args{argc, argv};
     std::string model_path = args.get("--model");
     int camera_id = std::stoi(args.get("--camera_id", "0"));
-    int width = std::stoi(args.get("--width", "640"));
-    int height = std::stoi(args.get("--height", "480"));
-    int frame_skip = 2;  // Process every 2nd frame
-    model::run_res10(camera_id, width, height, frame_skip);
+    int width = std::stoi(args.get("--width", "1280"));
+    int height = std::stoi(args.get("--height", "720"));
+    int camera_fps = std::stoi(args.get("--fps", "60"));
+    // int frame_skip = 2;  // Process every 2nd frame
+
+    // model::run_res10(camera_id, width, height, frame_skip);
     // model::run_kanface(camera_id, width, height, frame_skip);
 
+    cv::VideoCapture cap;
 
-    // Initialize camera with simpler pipeline
+    // Remember to add CAP_GSTREAMER here
+    if (!cap.open(camera::gstreamer_pipeline(camera_id, width, height, camera_fps), cv::CAP_GSTREAMER)) {
+        std::cout << "Failed to open camera" << std::endl;
+    }
+
+    cv::Mat frame;
+    int frame_counter = 0;
+    double average_fps = 0.0;
+    auto start_time = std::chrono::high_resolution_clock::now();
+
+    while (true) {
+        auto t1 = std::chrono::high_resolution_clock::now();
+        cap >> frame;
+        if (frame.empty()) {
+            std::cout << "Failed to capture frame" << std::endl;
+        }
+        ++frame_counter;
+        auto now = std::chrono::high_resolution_clock::now();
+        double elasped_time = std::chrono::duration_cast<std::chrono::milliseconds>(now - start_time).count();
+        if (elasped_time >= 1000) {
+            average_fps = frame_counter * 1000.0 / elasped_time;
+            frame_counter = 0;
+            start_time = now;
+        }
+
+        std::ostringstream stream;
+        stream << std::fixed << std::setprecision(2) << average_fps;
+        cv::putText(frame, stream.str(), cv::Point(10, 30), cv::FONT_HERSHEY_SIMPLEX, 0.7, cv::Scalar(0, 255, 0), 2);
+
+        cv::imshow("FaceRecognitionSystem", frame);
+        if (cv::waitKey(1) == 27) break;
+        auto t2 = std::chrono::high_resolution_clock::now();
+        double latency = std::chrono::duration_cast<std::chrono::milliseconds>(t2 - t1).count();
+        std::cout << "Latency: " << latency << std::endl;
+
+    }
+
 
     // Load TorchScript model
     //
     // // Create window
     // cv::namedWindow("Camera", cv::WINDOW_AUTOSIZE);
-    //
-    // // FPS calculation variables
-    // int frame_count = 0;
-    // double fps = 0.0;
-    // double freq = cv::getTickFrequency();
-    // double prev_tick = cv::getTickCount();
-    //
+
     // // Frame counter for processing only some frames
     // int frame_counter = 0;
 
@@ -209,18 +245,14 @@ int main(int argc, const char* argv[]) {
     //     // cv::putText(frame, faces_text.str(), cv::Point(10, 90), 
     //     //             cv::FONT_HERSHEY_SIMPLEX, 0.7, cv::Scalar(0, 255, 255), 2);
     //
-    //     // Display the resulting frame
-    //     cv::imshow("Camera", frame);
     //
-    //     // Check for exit
-    //     if (cv::waitKey(1) == 'q') {
-    //         break;
-    //     }
     // }
     //
-    // // Clean up
-    // cap.release();
-    // cv::destroyAllWindows();
-    
+
+
+    // use member function at object-level
+    cap.release();
+    // use static function at class-level
+    cv::destroyAllWindows(); 
     return 0;
 }

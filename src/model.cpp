@@ -172,7 +172,7 @@ void model::run_res10(int camera_id, int width, int height, int frame_skip) {
     cv::destroyAllWindows();
 }
 
-void model::run_kanface(int camera_id, int width, int height, int frame_skip) {
+void model::run_kanface() {
 
     std::string model_path = "/home/jetson/FaceRecognitionSystem/jetson/backend/model/kanface/kanface_06_25_512_trace_new.ts";
     torch::jit::script::Module model;

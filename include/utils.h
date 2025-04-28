@@ -4,34 +4,118 @@
 #include <iostream>
 #include <torch/script.h>
 #include <opencv2/core.hpp>
+#include <opencv2/core/cuda.hpp>
 #include <opencv2/highgui.hpp>
 #include <opencv2/opencv.hpp>
 #include <opencv2/videoio.hpp>
 
 
 namespace utils {
-    cv::Mat torchTensortoCVMat(torch::Tensor& tensor)
-        {
-            tensor = tensor.squeeze().detach();
-            tensor = tensor.permute({1, 2, 0}).contiguous();
-            tensor = tensor.mul(255).clamp(0, 255).to(torch::kU8);
-            tensor = tensor.to(torch::kCPU);
-            int64_t height = tensor.size(0);
-            int64_t width = tensor.size(1);
-            cv::Mat mat = cv::Mat(cv::Size(width, height), CV_8UC3, tensor.data_ptr<uchar>());
-            return mat.clone();
-        }
 
-    torch::Tensor cvMatToTensor(cv::Mat mat)
-    {
-        std::cout << "converting cvmat to tensor\n";
-        cv::cvtColor(mat, mat, cv::COLOR_BGR2RGB);
-        cv::Mat matFloat;
-        mat.convertTo(matFloat, CV_32F, 1.0 / 255);
-        auto size = matFloat.size();
-        auto nChannels = matFloat.channels();
-        auto tensor = torch::from_blob(matFloat.data, {1, size.height, size.width, nChannels});
-        return tensor.permute({0, 3, 1, 2});
+cv::Mat gpuTensorToMat(torch::Tensor &tensor) {
+    // Move to CPU and convert to uint8
+    tensor = tensor.detach().to(torch::kCPU);
+    
+    // Assume input is float [0,1]; convert to uint8
+    if (tensor.dtype() == torch::kFloat32) {
+        tensor = tensor.mul(255).clamp(0, 255).to(torch::kUInt8);
+    }
+
+    // Make contiguous if needed
+    if (!tensor.is_contiguous()) {
+        tensor = tensor.contiguous();
+    }
+    // Shape should be (C, H, W) → convert to (H, W, C)
+    TORCH_CHECK(tensor.dim() == 3, "Expected 3D tensor (C, H, W)");
+    tensor = tensor.permute({1, 2, 0});  // (H, W, C)
+
+    int height = tensor.size(0);
+    int width = tensor.size(1);
+    int channels = tensor.size(2);
+
+    // Create OpenCV Mat header that shares memory with tensor
+    // Be careful: this mat shares memory with the tensor
+    cv::Mat mat(height, width, CV_MAKETYPE(CV_8U, channels), tensor.data_ptr());
+
+    // Optional: return deep copy if you will destroy tensor soon
+    return mat.clone();  // remove `.clone()` if you're careful with tensor lifetime
+}
+
+torch::Tensor cvMatToTensor(cv::Mat &mat)
+{
+    cv::cvtColor(mat, mat, cv::COLOR_BGR2RGB);
+
+    // Step 2: Create tensor from mat.data on CPU
+    auto tensor_cpu = torch::from_blob(
+        mat.data,
+        {1, mat.rows, mat.cols, mat.channels()},
+        torch::TensorOptions().dtype(torch::kUInt8).device(torch::kCPU)
+    ).permute({0, 3, 1, 2}).to(torch::kFloat32).contiguous().div_(255.0);  // [1, H, W, C] → [1, C, H, W]
+
+    // mat.release();
+
+    return tensor_cpu;
+}
+
+torch::Tensor transforms(cv::Mat &frame, 
+                    cv::Size size, 
+                    const std::vector<double> &mean, 
+                    const std::vector<double> &std) {
+    cv::resize(frame, frame, size, 0, 0, cv::INTER_LINEAR);
+    torch::Tensor tensor = utils::cvMatToTensor(frame);
+    tensor = torch::data::transforms::Normalize<>(mean, std)(tensor);
+    return tensor;
+}
+
+void printIValueType(const torch::IValue& val) {
+    if (val.isTensor()) std::cout << "Tensor" << std::endl;
+    else if (val.isInt()) std::cout << "Int" << std::endl;
+    else if (val.isDouble()) std::cout << "Double" << std::endl;
+    else if (val.isBool()) std::cout << "Bool" << std::endl;
+    else if (val.isTuple()) std::cout << "Tuple" << std::endl;
+    else if (val.isList()) std::cout << "List" << std::endl;
+    else if (val.isGenericDict()) std::cout << "Dict" << std::endl;
+    else if (val.isString()) std::cout << "String" << std::endl;
+    else std::cout << "Unknown Type" << std::endl;
+}
+
+void printIValueRecursive(const torch::IValue& val, int indent = 0) {
+    auto pad = std::string(indent, ' ');
+    if (val.isTensor()) {
+        std::cout << pad << "Tensor of shape: " << val.toTensor().sizes() << "\n";
+    } else if (val.isInt()) {
+        std::cout << pad << "Int: " << val.toInt() << "\n";
+    } else if (val.isDouble()) {
+        std::cout << pad << "Double: " << val.toDouble() << "\n";
+    } else if (val.isBool()) {
+        std::cout << pad << "Bool: " << val.toBool() << "\n";
+    } else if (val.isString()) {
+        std::cout << pad << "String: " << val.toStringRef() << "\n";
+    } else if (val.isList()) {
+        std::cout << pad << "List:\n";
+        auto list = val.toList();
+        for (const auto& item : list) {
+            printIValueRecursive(item, indent + 2);
+        }
+    } else if (val.isTuple()) {
+        std::cout << pad << "Tuple:\n";
+        auto tuple = val.toTuple();
+        for (const auto& item : tuple->elements()) {
+            printIValueRecursive(item, indent + 2);
+        }
+    } else if (val.isGenericDict()) {
+        std::cout << pad << "Dict:\n";
+        auto dict = val.toGenericDict();
+        for (const auto& pair : dict) {
+            std::cout << pad << " Key:\n";
+            printIValueRecursive(pair.key(), indent + 2);
+            std::cout << pad << " Value:\n";
+            printIValueRecursive(pair.value(), indent + 2);
+        }
+    } else {
+        std::cout << pad << "Unknown type\n";
     }
 }
+
+} // namespace utils
 #endif // UTILS_H
