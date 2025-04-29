@@ -5,7 +5,7 @@ import hashlib
 import zipfile
 import time
 
-JETSON_EMBED_PATH = "embeddings/"
+JETSON_EMBED_PATH = "/home/jetson/FaceRecognitionSystem/jetson/backend/embeddings/"
 SERVER_SYNC_API = "http://api.fptuaiclub.me/sync-metadata"
 SERVER_DOWNLOAD_API = "http://api.fptuaiclub.me/download-embeds/"
 TIME_INTERVAL = 3  # seconds

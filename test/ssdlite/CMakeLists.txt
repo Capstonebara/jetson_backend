@@ -16,6 +16,8 @@ set(CMAKE_PREFIX_PATH
 find_package(OpenCV REQUIRED)
 find_package(Torch REQUIRED)
 find_package(TorchVision REQUIRED)
+find_package(OpenMP REQUIRED)
+find_library(FAISS_LIB NAMES faiss PATHS /home/jetson/faiss/build/faiss/ )
 
 include_directories("../../include")
 
@@ -25,5 +27,5 @@ add_executable(test_ssdlite
     test_ssdlite.cpp
 )
 
-target_link_libraries(test_ssdlite PRIVATE ${OpenCV_LIBS} ${TORCH_LIBRARIES} TorchVision::TorchVision )
-
+target_link_libraries(test_ssdlite PRIVATE ${OpenCV_LIBS} ${TORCH_LIBRARIES} ${FAISS_LIB} OpenMP::OpenMP_CXX openblas TorchVision::TorchVision)
+set_property(TARGET test_ssdlite PROPERTY CXX_STANDARD 14)
