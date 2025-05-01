@@ -9,27 +9,27 @@
 #include <unordered_map>
 #include <camera.h>
 #include <cli.h>
+#include <detector.h>
+#include <extractor.h>
 // #include <string>
 
-using namespace torch::indexing;
-int main(int argc, const char *argv[]) {
-// int main() {
+int main(int argc, const char *argv[]) { // int main() {
     cli::Args args{argc, argv};
     std::string detector_path = args.get("--detector_path", "/home/jetson/FaceRecognitionSystem/jetson/backend/model/ssdlite/ssdlite_320_cuda.ts");
     std::string extractor_path = args.get("--extractor_path", "/home/jetson/FaceRecognitionSystem/jetson/backend/model/kanface/kanface_06_25_128_custom_cuda.ts");
     // std::string image_path = args.get("--image", "/home/jetson/facerecognitionsystem/jetson/backend/assets/0_parade_marchingband_1_5.jpg");
     // std::string output_path = args.get("--output", "/home/jetson/facerecognitionsystem/jetson/backend/result/0_parade_marchingband_1_5_modified.jpg");
-    int camera_id = std::stoi(args.get("--camera-id", "0"));
-    int width = std::stoi(args.get("--width", "640"));
-    int height = std::stoi(args.get("--height", "480"));
-    int camera_fps = std::stoi(args.get("--fps", "60"));
-    int transforms_width = std::stoi(args.get("--transforms_width", "320"));
-    int transforms_height = std::stoi(args.get("--transforms_height", "320")); 
-    float detector_threshold = std::stof(args.get("--detector_threshold", "0.95"));
-    int skip_frame = std::stoi(args.get("--skip_frame", "2")); 
-    float extractor_threshold = std::stof(args.get("--extractor_threshold", "1.2"));
-    float progress_duration = std::stof(args.get("--progress_duration", "3"));
-    std::string db_path = args.get("--db_path", "/home/jetson/FaceRecognitionSystem/jetson/backend/embeddings/");
+    const int camera_id = std::stoi(args.get("--camera-id", "0"));
+    const int width = std::stoi(args.get("--width", "640"));
+    const int height = std::stoi(args.get("--height", "480"));
+    const int camera_fps = std::stoi(args.get("--fps", "60"));
+    const int transforms_width = std::stoi(args.get("--transforms_width", "320"));
+    const int transforms_height = std::stoi(args.get("--transforms_height", "320")); 
+    const float detector_threshold = std::stof(args.get("--detector_threshold", "0.95"));
+    const int skip_frame = std::stoi(args.get("--skip_frame", "2")); 
+    const float extractor_threshold = std::stof(args.get("--extractor_threshold", "1.2"));
+    const float progress_duration = std::stof(args.get("--progress_duration", "3"));
+    const std::string db_path = args.get("--db_path", "/home/jetson/FaceRecognitionSystem/jetson/backend/embeddings/");
 
     // ------ load database --------
     std::vector<utils::UserEmbedding> users = utils::load_all_embeddings(db_path);
@@ -67,7 +67,6 @@ int main(int argc, const char *argv[]) {
     }
     
     std::cout << "faiss index contains a total of " << index.ntotal << " vectors" << std::endl;
-    
 
 
     // ------ open camera --------
@@ -78,96 +77,12 @@ int main(int argc, const char *argv[]) {
 
     // ------ load model --------
 
-    torch::jit::script::Module detector;
-    try {
-        detector = torch::jit::load(detector_path);
+    Detector detector(detector_path);
+    Extractor extractor(extractor_path);
 
-    } catch (const c10::Error &e) {
-        std::cerr << "can't load model" << std::endl;
-    }
-    detector.eval();
-
-    bool is_on_cuda = false;
-    for (const auto& param : detector.parameters()) {
-        if (param.device().is_cuda()) {
-            is_on_cuda = true;
-            break;
-        }
-    }
-    
-
-    torch::Device device_detector{torch::kCPU};
-    if (is_on_cuda && torch::cuda::is_available()) {
-        // dung non-blocking technique va  pin memory
-        device_detector = torch::kCUDA;
-    } 
-
-    // // warm-up detector
-    // {
-    //     std::cout << "[Log] Start Warm-up detector " << std::endl;
-    //     torch::NoGradGuard no_grad;
-    //     torch::Tensor dummy_input = torch::rand({1, 3, 320, 320}).to(device_detector);
-    //     detector.forward({dummy_input});
-    //     std::cout << "[Log] End Warm-up detector " << std::endl;
-    // }
-    //
-    //
-    // // doan code nay duplicate can refactor
-    torch::jit::script::Module extractor;
-    try {
-        extractor = torch::jit::load(extractor_path);
-
-    } catch (const c10::Error &e) {
-        std::cerr << "can't load model" << std::endl;
-    }
-    extractor.eval();
-
-    bool is_on_cuda_extractor = false;
-    for (const auto& param : extractor.parameters()) {
-        if (param.device().is_cuda()) {
-            is_on_cuda_extractor = true;
-            break;
-        }
-    }
-
-    torch::Device device_extractor{torch::kCPU};
-    if (is_on_cuda_extractor && torch::cuda::is_available()) {
-        // dung non-blocking technique va  pin memory
-        device_extractor = torch::kCUDA;
-    } 
-
-    // // warm-up extractor
-    //
-    // {
-    //     std::cout << "[Log] Start Warm-up extractor " << std::endl;
-    //     torch::NoGradGuard no_grad;
-    //     torch::Tensor dummy_input = torch::rand({1, 3, 112, 112}).to(device_extractor);
-    //     extractor.forward({dummy_input});
-    //     std::cout << "[Log] End Warm-up extractor " << std::endl;
-    // }
-
-
-    // torch::tensor tensor{torch::rand({1, 3, 224, 224})};
-    // torch::device device_detector{torch::kcuda};
-    // std::cout << tensor.to(device_detector) << std::endl;
-    // cv::Mat image = cv::imread(image_path);
-    // cv::imshow("hello", image);
-
-    // torch::tensor tensor = utils::transforms(image, size, mean, std); 
-
-    cv::Size size_detector(transforms_width, transforms_height);
-    std::vector<double> mean_detector{0.485, 0.456, 0.406};
-    std::vector<double> std_detector{0.229, 0.224, 0.225};
-
-    cv::Size size_extractor(112, 112);
-    std::vector<double> mean_extractor{0.5, 0.5, 0.5};
-    std::vector<double> std_extractor{0.5, 0.5, 0.5};
-
-    // torch::tensor tensor = utils::transforms(image, size, mean_detector, std_detector); 
     cv::Mat frame;
     int frame_counter = 0;
     double average_fps = 0.0f;
-    auto start_time = std::chrono::high_resolution_clock::now();
 
     std::vector<cv::Rect>    last_boxes;
     std::vector<std::string> last_texts;
@@ -175,14 +90,9 @@ int main(int argc, const char *argv[]) {
     std::unordered_map<int64_t, std::vector<torch::Tensor>> embedding_map;
     int64_t progress_time = 0;
 
-    // ██████╗ ███████╗████████╗███████╗ ██████╗████████╗ ██████╗ ██████╗ 
-    // ██╔══██╗██╔════╝╚══██╔══╝██╔════╝██╔════╝╚══██╔══╝██╔═══██╗██╔══██╗
-    // ██║  ██║█████╗     ██║   █████╗  ██║        ██║   ██║   ██║██████╔╝
-    // ██║  ██║██╔══╝     ██║   ██╔══╝  ██║        ██║   ██║   ██║██╔══██╗
-    // ██████╔╝███████╗   ██║   ███████╗╚██████╗   ██║   ╚██████╔╝██║  ██║
-    // ╚═════╝ ╚══════╝   ╚═╝   ╚══════╝ ╚═════╝   ╚═╝    ╚═════╝ ╚═╝  ╚═╝
     cv::Scalar bbox_color(0, 255, 255);
 
+    auto start_time = std::chrono::high_resolution_clock::now();
     while (true) {
         auto t1 = std::chrono::high_resolution_clock::now();
         cap >> frame;
@@ -192,56 +102,23 @@ int main(int argc, const char *argv[]) {
             std::cout << "failed to capture frame" << std::endl;
             break;
         }
+
         if (frame_counter % skip_frame == 0) {
             last_boxes.clear();
             last_texts.clear();
-            torch::Tensor tensor = utils::transforms(frame, size_detector, mean_detector, std_detector);
+            const torch::Tensor &preprocessed_input = Detector::preprocess(frame, transforms_height, transforms_width);
 
-            // std::cout << "tensor dtype: " << tensor.dtype() << "\n";
-            // std::cout << "tensor device: " << tensor.device() << "\n";
-            // std::cout << "tensor shape: " << tensor.sizes() << std::endl;
-            // std::cout << tensor.is_contiguous() << std::endl;
-            // std::cout << tensor.index({slice(), 2, slice(None, 5), slice(None, 5)}) << std::endl;
+            const torch::Tensor &selected_boxes = detector.inference(preprocessed_input, detector_threshold).to(torch::kCPU);
+            // Ensure proper tensor access
+            auto accessor = selected_boxes.accessor<float, 2>();  // Use accessor on a CPU tensor
 
-
-            // create a vector of inputs
-            std::vector<torch::IValue> inputs;
-            inputs.push_back(tensor.to(device_detector));
-
-            torch::NoGradGuard no_grad;
-
-            // only declare `output` once
-            auto output = detector.forward(inputs).toTuple();  // type: c10::intrusive_ptr<c10::ivalue::tuple>
-
-            // utils::prinVivaluerecursive(detector.forward(inputs));
-            // tensor.reset();
-            // // only declare `detections` once
-            std::vector<torch::IValue> detections = output->elements();
-            //
-            // // extract list of tensors
-            auto bbox_list = detections[0].toList();   // list[tensor[4]]
-            auto conf_list = detections[1].toList(); // list[tensor[]]
-            // std::cout << bbox_list.get(0).toTensor().sizes() << std::endl;
-            // std::cout << conf_list.get(0).toTensor().sizes() << std::endl;
-            torch::Tensor boxes = bbox_list.get(0).toTensor();
-            torch::Tensor mask = conf_list.get(0).toTensor().gt(detector_threshold);
-            // std::cout << mask << std::endl;
-            torch::Tensor selected_boxes = boxes.index({mask}).to(torch::kCPU);
-            // std::cout << "size: "
-            //     << selected_boxes.sizes() 
-            //     << "\n"
-            //     << selected_boxes 
-            //     << std::endl;
-
-            auto accessor = selected_boxes.accessor<float, 2>();
             cv::resize(frame, frame, cv::Size(width, height), 0, 0, cv::INTER_LINEAR);
             cv::cvtColor(frame, frame, cv::COLOR_RGB2BGR);
 
 
             for (int64_t i = 0; i < accessor.size(0); ++i) {
-                inputs.clear();
-                float scale_w = static_cast<float>(width) / size_detector.width;
-                float scale_h = static_cast<float>(height) / size_detector.height;
+                float scale_w = static_cast<float>(width) / transforms_width;
+                float scale_h = static_cast<float>(height) / transforms_height;
 
                 int x1 = static_cast<int>(std::round(accessor[i][0]) * scale_w);
                 int y1 = static_cast<int>(std::round(accessor[i][1]) * scale_h);
@@ -259,29 +136,11 @@ int main(int argc, const char *argv[]) {
                 } 
                 last_boxes.push_back(box);
 
-
-                // std::cout << "tensor shape: " << tensor.sizes() << std::endl;
-                // std::cout << "x1: " << x1 
-                //     << " ,y1: " << y1
-                //     << " ,x2: " << x2
-                //     << " ,y2: " << y2
-                //     << " tensor size(): " << tensor.sizes() 
-                //     << std::endl;
-
-                // ███████╗██╗  ██╗████████╗██████╗  █████╗  ██████╗████████╗ ██████╗ ██████╗ 
-                // ██╔════╝╚██╗██╔╝╚══██╔══╝██╔══██╗██╔══██╗██╔════╝╚══██╔══╝██╔═══██╗██╔══██╗
-                // █████╗   ╚███╔╝    ██║   ██████╔╝███████║██║        ██║   ██║   ██║██████╔╝
-                // ██╔══╝   ██╔██╗    ██║   ██╔══██╗██╔══██║██║        ██║   ██║   ██║██╔══██╗
-                // ███████╗██╔╝ ██╗   ██║   ██║  ██║██║  ██║╚██████╗   ██║   ╚██████╔╝██║  ██║
-
                 auto progress_time_start = std::chrono::high_resolution_clock::now();
+                // Extract embeddings
                 cv::Mat roi = frame(cv::Rect(x1, y1, x2 - x1, y2 - y1));
-                tensor = utils::transforms(roi, size_extractor, mean_extractor, std_extractor);
-
-                inputs.push_back(tensor.to(device_extractor));
-                //
-                torch::Tensor embedding = extractor.forward(inputs).toTensor();
-                
+                torch::Tensor preprocessed_roi = Extractor::preprocess(roi);
+                torch::Tensor embedding = extractor.inference(preprocessed_roi);
 
                 auto progress_time_end = std::chrono::high_resolution_clock::now();
 
@@ -297,7 +156,7 @@ int main(int argc, const char *argv[]) {
                     cv::rectangle(frame, cv::Point(x1, y2 - 5), cv::Point(x1 + progress_bar_width, y2 - 5), (0, 255, 255), cv::FILLED);
                     cv::rectangle(frame, box, cv::Scalar(0, 255, 255), 2);
                 //     embedding_map[i].push_back(embedding);
-                    // continue;
+                    continue;
                 } 
                 //
                 // progress_time = 0;
