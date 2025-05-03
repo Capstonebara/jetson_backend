@@ -20,13 +20,10 @@ find_package(OpenMP REQUIRED)
 find_library(FAISS_LIB NAMES faiss PATHS /home/jetson/faiss/build/faiss/ )
 
 include_directories("../../include")
+file(GLOB_RECURSE SRC_FILES "../../src/*.cpp")
 
 add_executable(test_ssdlite
-    "../../src/utils.cpp" 
-    "../../src/camera.cpp" 
-    "../../src/cli.cpp" 
-    "../../src/detector.cpp" 
-    "../../src/extractor.cpp" 
+    ${SRC_FILES}
     test_ssdlite.cpp
 )
 

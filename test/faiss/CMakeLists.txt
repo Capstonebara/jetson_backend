@@ -17,9 +17,9 @@ find_library(FAISS_LIB NAMES faiss PATHS /home/jetson/faiss/build/faiss/ )
 include_directories("../../include" 
     # "/home/jetson/faiss/"
 )
+file(GLOB_RECURSE SRC_FILES "../../src/*.cpp")
 add_executable(test_faiss 
-    "../../src/camera.cpp" 
-    "../../src/cli.cpp" 
+    ${SRC_FILES}
     test_faiss.cpp
 )
 target_link_libraries(test_faiss PRIVATE ${OpenCV_LIBS} ${TORCH_LIBRARIES} ${FAISS_LIB} OpenMP::OpenMP_CXX openblas TorchVision::TorchVision)

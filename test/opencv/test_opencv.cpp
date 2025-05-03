@@ -21,8 +21,8 @@ int main(int argc, const char* argv[]) {
     cli::Args args{argc, argv};
     std::string model_path = args.get("--model");
     int camera_id = std::stoi(args.get("--camera_id", "0"));
-    int width = std::stoi(args.get("--width", "1280"));
-    int height = std::stoi(args.get("--height", "720"));
+    int width = std::stoi(args.get("--width", "640"));
+    int height = std::stoi(args.get("--height", "360"));
     int camera_fps = std::stoi(args.get("--fps", "60"));
 
     VideoCapture cap;

@@ -11,8 +11,10 @@
 #include <cli.h>
 #include <detector.h>
 #include <extractor.h>
+#include <vectordb.h>
 // #include <string>
 
+namespace F = torch::nn::functional;
 int main(int argc, const char *argv[]) { // int main() {
     cli::Args args{argc, argv};
     std::string detector_path = args.get("--detector_path", "/home/jetson/FaceRecognitionSystem/jetson/backend/model/ssdlite/ssdlite_320_cuda.ts");
@@ -27,47 +29,18 @@ int main(int argc, const char *argv[]) { // int main() {
     const int transforms_height = std::stoi(args.get("--transforms_height", "320")); 
     const float detector_threshold = std::stof(args.get("--detector_threshold", "0.95"));
     const int skip_frame = std::stoi(args.get("--skip_frame", "2")); 
-    const float extractor_threshold = std::stof(args.get("--extractor_threshold", "1.2"));
-    const float progress_duration = std::stof(args.get("--progress_duration", "3"));
+    const float extractor_threshold = std::stof(args.get("--extractor_threshold", "0.5"));
+    const float progress_duration = std::stof(args.get("--progress_duration", "3000"));
     const std::string db_path = args.get("--db_path", "/home/jetson/FaceRecognitionSystem/jetson/backend/embeddings/");
+    const double min_sharpness_threshold = std::stod(args.get("--min_sharpness_threshold", "50"));
 
     // ------ load database --------
-    std::vector<utils::UserEmbedding> users = utils::load_all_embeddings(db_path);
-    std::cout << "loaded embeddings for " << users.size() << " users" << std::endl;
-    
-    if (users.empty()) {
-        std::cerr << "no user embeddings found. exiting." << std::endl;
-        return 1;
-    }
+    VectorDB db(db_path);
 
-    int embedding_size = users.front().embedding_size;
-    std::cout << "creating faiss index with dimension: " << embedding_size << std::endl;
-    
-    faiss::IndexFlatL2 index(embedding_size);
-    
-    // create a map to track which index entries belong to which user
-    std::map<int, int> index_to_user_map;  // maps faiss index to user index in our vector
-    
-    // add all embeddings to the faiss index
-    for (size_t user_idx = 0; user_idx < users.size(); ++user_idx) {
-        const utils::UserEmbedding& user = users[user_idx];
-        
-        int num_vectors = user.embeddings.size() / embedding_size;
-        std::cout << "adding " << num_vectors << " embeddings for user: " 
-                  << user.name << " (id: " << user.id << ")" << std::endl;
-        
-        int start_idx = index.ntotal;
-        index.add(num_vectors, user.embeddings.data());
-        std::cout << "added vectors. index now contains " << index.ntotal << " vectors" << std::endl;
-        
-        // map the added indices to this user
-        for (int i = 0; i < num_vectors; ++i) {
-            index_to_user_map[start_idx + i] = user_idx;
-        }
-    }
-    
-    std::cout << "faiss index contains a total of " << index.ntotal << " vectors" << std::endl;
+    // ------ load model --------
 
+    Detector detector(detector_path);
+    Extractor extractor(extractor_path);
 
     // ------ open camera --------
     cv::VideoCapture cap;
@@ -75,22 +48,18 @@ int main(int argc, const char *argv[]) { // int main() {
         std::cout << "failed to open camera" << std::endl;
     }
 
-    // ------ load model --------
-
-    Detector detector(detector_path);
-    Extractor extractor(extractor_path);
-
     cv::Mat frame;
     int frame_counter = 0;
     double average_fps = 0.0f;
 
-    std::vector<cv::Rect>    last_boxes;
-    std::vector<std::string> last_texts;
+    // std::vector<cv::Rect>    last_boxes;
+    // std::vector<std::string> last_texts;
 
     std::unordered_map<int64_t, std::vector<torch::Tensor>> embedding_map;
     int64_t progress_time = 0;
-
     cv::Scalar bbox_color(0, 255, 255);
+
+    std::string identity = "";
 
     auto start_time = std::chrono::high_resolution_clock::now();
     while (true) {
@@ -104,17 +73,18 @@ int main(int argc, const char *argv[]) { // int main() {
         }
 
         if (frame_counter % skip_frame == 0) {
-            last_boxes.clear();
-            last_texts.clear();
+            // last_boxes.clear();
+            // last_texts.clear();
+
+            auto progress_time_start = std::chrono::high_resolution_clock::now();
             const torch::Tensor &preprocessed_input = Detector::preprocess(frame, transforms_height, transforms_width);
 
             const torch::Tensor &selected_boxes = detector.inference(preprocessed_input, detector_threshold).to(torch::kCPU);
-            // Ensure proper tensor access
+
             auto accessor = selected_boxes.accessor<float, 2>();  // Use accessor on a CPU tensor
 
             cv::resize(frame, frame, cv::Size(width, height), 0, 0, cv::INTER_LINEAR);
             cv::cvtColor(frame, frame, cv::COLOR_RGB2BGR);
-
 
             for (int64_t i = 0; i < accessor.size(0); ++i) {
                 float scale_w = static_cast<float>(width) / transforms_width;
@@ -127,140 +97,134 @@ int main(int argc, const char *argv[]) { // int main() {
                 cv::Rect box(cv::Point(x1, y1), cv::Point(x2, y2));
 
                 auto area = box.area();
-                std::cout << "area of frame: " << width * height << std::endl;
-                std::cout << "area of bbox: " << area << std::endl;
-                std::cout << "area of frame / area of bbox: " << width * height / area << std::endl;
-                if ( (area < (width * height / 8)) || (area > (width * height / 2))) {
+                // std::cout << "area of frame: " << width * height << std::endl;
+                // std::cout << "area of bbox: " << area << std::endl;
+                // std::cout << "Frame larger than bbox " << width * height / area << " times" << std::endl;
+                if ((area < (width * height / 15)) || (area > (width * height / 2))) { 
+                    std::cout << "Embedding_map[" << i << "].size() = " << embedding_map[i].size() << std::endl;
                     embedding_map.erase(i);
+                    progress_time = 0;
                     continue;
-                } 
-                last_boxes.push_back(box);
+                }
 
-                auto progress_time_start = std::chrono::high_resolution_clock::now();
-                // Extract embeddings
+                // last_boxes.push_back(box);
+
+                // Extract embedding
                 cv::Mat roi = frame(cv::Rect(x1, y1, x2 - x1, y2 - y1));
+                cv::Mat gray_roi;
+
+                // --- Quality Check 2: Sharpness ---
+                cv::cvtColor(roi, gray_roi, cv::COLOR_BGR2GRAY); // Assuming input `frame` is BGR for OpenCV display
+                cv::Mat laplacian;
+                cv::Laplacian(gray_roi, laplacian, CV_64F);
+                cv::Scalar mu, sigma;
+                cv::meanStdDev(laplacian, mu, sigma);
+                double sharpness = sigma.val[0] * sigma.val[0];
+                const double MIN_SHARPNESS_THRESHOLD = min_sharpness_threshold; // Tune this!
+                if (sharpness < MIN_SHARPNESS_THRESHOLD) {
+                    // Draw a box indicating ignored blur? (optional)
+                    // cv::rectangle(frame, box, cv::Scalar(128, 128, 128), 1); // Gray for ignored blur
+                    continue;
+                }
+
                 torch::Tensor preprocessed_roi = Extractor::preprocess(roi);
                 torch::Tensor embedding = extractor.inference(preprocessed_roi);
 
                 auto progress_time_end = std::chrono::high_resolution_clock::now();
 
-                progress_time += std::chrono::duration_cast<std::chrono::milliseconds>(progress_time_end - progress_time_start).count();
-                std::cout << "progress_time: " << progress_time << std::endl;
+                progress_time += std::chrono::duration_cast<std::chrono::milliseconds>(progress_time_end - progress_time_start ).count();
+                // std::cout << "progress_time: " << progress_time << std::endl;
 
                 if (progress_time < progress_duration) {
-                //     // draw background
-                    cv::rectangle(frame, cv::Point(x1, y2 - 5), cv::Point(x2, y2 - 5), (50, 50, 50), cv::FILLED);
-                    int progress_bar_width = progress_time / progress_duration * box.width;
+                    // draw background
+                    cv::rectangle(frame, cv::Point(x1, y1 - int(height * 0.028)), cv::Point(x2, y1 - 5), cv::Scalar(202, 162, 177));
+                    int progress_bar_width = static_cast<int>((progress_time / static_cast<float>(progress_duration)) * box.width);
 
                     // draw progress_bar 
-                    cv::rectangle(frame, cv::Point(x1, y2 - 5), cv::Point(x1 + progress_bar_width, y2 - 5), (0, 255, 255), cv::FILLED);
+                    cv::rectangle(frame, cv::Point(x1, y1 - int(height * 0.028)), cv::Point(x1 + progress_bar_width, y1 - 5), cv::Scalar(0, 255, 255), cv::FILLED);
                     cv::rectangle(frame, box, cv::Scalar(0, 255, 255), 2);
-                //     embedding_map[i].push_back(embedding);
+                    embedding_map[i].push_back(embedding);
                     continue;
                 } 
-                //
-                // progress_time = 0;
-                // if (embedding_map[i].empty()) {
-                //     continue;
-                // }
 
-                // // calculate mean embedding
-                // std::vector<torch::Tensor>& embeddings = embedding_map[i];
-                // std::cout << "Embedding vector contain: " << embeddings.size() << "\n";
-                // torch::Tensor stacked = torch::stack(embeddings);
-                // torch::Tensor mean_embedding = stacked.mean(0);
-                // std::cout << "Embedding vector: " << mean_embedding.index({Slice(), Slice(None, 10)})  << "\n";
-                //
-                // // search bat dau tu day
-                // mean_embedding = mean_embedding.cpu().contiguous();  // always force contiguous memory
-                // float* query_ptr = mean_embedding.data_ptr<float>();  // direct float* access
-
-                embedding = embedding.cpu().contiguous();  // always force contiguous memory
-                float* query_ptr = embedding.data_ptr<float>();  // direct float* access
-
-                // std::cout << "tensor device: " << embedding.device() << "\n";
-                // std::cout << "tensor dtype: " << embedding.dtype() << "\n";
-                // std::cout << "tensor shape: " << embedding.sizes() << std::endl;
-                std::cout << "query_ptr shape: " << sizeof(query_ptr) / sizeof(float) << std::endl;
-
-                const int k = 1;  // number of nearest neighbors to find
-                std::vector<float> distances(k);
-                std::vector<faiss::idx_t> indices(k);
-
-                index.search(1, query_ptr, k, distances.data(), indices.data());
-
-
-                for (int i = 0; i < k; ++i) {
-                    if (indices[i] >= 0 && indices[i] < index.ntotal) {
-                        int user_idx = index_to_user_map[indices[i]];
-                        std::cout << "match " << i << ": user " << users[user_idx].name 
-                                  << " (dist: " << distances[i] << ")" << std::endl;
-                        std::ostringstream ss;
-                        ss << users[user_idx].name
-                           << " " << std::fixed << std::setprecision(2)
-                           << distances[i] * 1e5 << "e-05";
-                        std::cout << "Distances: "  << distances[i] << std::endl;
-
-                        if (distances[i] * 1e5 < extractor_threshold) {
-                            bbox_color = cv::Scalar(0, 255, 0);
-                            cv::rectangle(frame, box, bbox_color, 2);
-                            cv::putText(frame, ss.str(), cv::Point(x1, y1 - 5), cv::FONT_HERSHEY_SIMPLEX, 1, bbox_color, 1);
-                        } else {
-                            bbox_color = cv::Scalar(0, 255, 255);
-                            cv::rectangle(frame, box, bbox_color, 2);
-                            cv::putText(frame, "Unknown", cv::Point(x1, y1 - 5), cv::FONT_HERSHEY_SIMPLEX, 1, bbox_color, 1);
-
-                        }
-                        last_texts.push_back(ss.str());
-
-                    }
+                // calculate mean embedding
+                std::vector<torch::Tensor>& embeddings = embedding_map[i];
+                if (embeddings.size() == 0) {
+                    continue;
                 }
+                torch::Tensor stacked = torch::stack(embeddings);
+                torch::Tensor mean_embedding = stacked.mean(0);
+                // std::cout << "Embedding vector: " << mean_embedding.index({Slice(), Slice(None, 10)})  << "\n";
+                // // search bat dau tu day
 
+                mean_embedding = mean_embedding.cpu().contiguous();  // always force contiguous memory
+                mean_embedding = F::normalize(mean_embedding, F::NormalizeFuncOptions().p(2).dim(-1)); // always normalize because of ArcFace
+                float* query_ptr = mean_embedding.data_ptr<float>();  // direct float* access
 
-                // std::cout << embedding.is_contiguous() << std::endl;
-                // std::cout << embedding.index({Slice(), Slice(None, 10)}) << std::endl;
-                // std::stringstream filename;
-                // filename << "face_" << i << ".png";
-                // cv::imwrite(filename.str(), roi);
+                // embedding = embedding.cpu().contiguous();  // always force contiguous memory
+                // float* query_ptr = embedding.data_ptr<float>();  // direct float* access
+                auto pair = db.search(query_ptr);
+                faiss::idx_t index = pair.first;
+                float similarity = pair.second;
+
+                std::cout << "Found user: \"" << db.findName(index) 
+                          << "\" at index: " << index
+                          << " Similarity: " << similarity 
+                          << std::endl;
+
+                std::ostringstream ss;
+                ss << db.findName(index)
+                   << " " << std::fixed << std::setprecision(2)
+                   << similarity;
+
+                if (similarity > extractor_threshold) {
+                    bbox_color = cv::Scalar(0, 255, 0);
+                    cv::rectangle(frame, box, bbox_color, 2);
+                    cv::putText(frame, ss.str(), cv::Point(x1, y1 - 5), cv::FONT_HERSHEY_SIMPLEX, 1, bbox_color, 1);
+                } else {
+                    bbox_color = cv::Scalar(0, 0, 255);
+                    cv::rectangle(frame, box, bbox_color, 2);
+                    cv::putText(frame, "Unknown", cv::Point(x1, y1 - 5), cv::FONT_HERSHEY_SIMPLEX, 1, bbox_color, 1);
+                }
+                // last_texts.push_back(ss.str());
+
             }
-        } else {
-            // ——— skipped frame: just re-draw last stored results ———
-
-            for (size_t i = 0; i < last_boxes.size(); ++i) {
-                auto area = last_boxes[i].area();
-                if ((area > (width * height / 8)) && (area < (width * height / 2))) {
-                    cv::rectangle(frame, last_boxes[i], bbox_color, 2);
-                    cv::putText(frame,
-                                last_texts[i],
-                                {last_boxes[i].x, last_boxes[i].y-5},
-                                cv::FONT_HERSHEY_SIMPLEX,
-                                1,
-                                bbox_color,
-                                2);
-                } 
-            }
+        // } else {
+        //     for (size_t i = 0; i < last_boxes.size(); ++i) {
+        //         auto area = last_boxes[i].area(); 
+        //         if ((area > (width * height / 10)) && (area < (width * height / 2))) { 
+        //         cv::rectangle(frame, last_boxes[i], bbox_color, 2); 
+        //         cv::putText(frame, 
+        //             last_texts[i],
+        //             {last_boxes[i].x, last_boxes[i].y-5},
+        //             cv::FONT_HERSHEY_SIMPLEX,
+        //             1,
+        //             bbox_color,
+        //             2);
+        //         } 
+        //     }
         }
-
 
         auto now = std::chrono::high_resolution_clock::now();
         double elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(now - start_time).count();
         if (elapsed >= 1000) {
             average_fps = frame_counter * 1000.0 / elapsed;
+            std::cout << "[Metric] Average FPS: " << average_fps << std::endl;
             frame_counter = 0;
             start_time = now;
         }
 
         std::ostringstream stream;
         stream << std::fixed << std::setprecision(2) << average_fps;
-        cv::putText(frame, stream.str(), cv::Point(10, 30), cv::FONT_HERSHEY_SIMPLEX, 0.7, bbox_color, 2);
+        cv::putText(frame, stream.str(), cv::Point(10, 30), cv::FONT_HERSHEY_SIMPLEX, 0.7, cv::Scalar(0, 255, 0), 2);
 
-        cv::imshow("facerecognitionsystem", frame);
+        cv::imshow("FaceRecognitionSystem", frame);
 
         auto t2 = std::chrono::high_resolution_clock::now();
         double latency = std::chrono::duration_cast<std::chrono::milliseconds>(t2 - t1).count();
-        std::cout << "[metric] latency: " << latency << std::endl;
+        // std::cout << "[Metric] Latency: " << latency << std::endl;
 
-        if (cv::waitKey(17) == 27) break;
+        if (cv::waitKey(1) == 27) break;
     }
 
     cap.release();

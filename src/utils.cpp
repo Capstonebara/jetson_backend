@@ -2,96 +2,6 @@
 
 namespace utils {
 
-void load_embeddings_from_bin(const std::string& file_path, utils::UserEmbedding& user_embedding) {
-    std::ifstream ifs(file_path, std::ios::binary);
-    if (!ifs) {
-        throw std::runtime_error("Cannot open file: " + file_path);
-    }
-
-    int id;
-    ifs.read(reinterpret_cast<char*>(&id), sizeof(int));
-    user_embedding.id = id;
-
-    int name_length;
-    ifs.read(reinterpret_cast<char*>(&name_length), sizeof(int));
-    std::vector<char> name_buf(name_length);
-    ifs.read(name_buf.data(), name_length);
-    user_embedding.name = std::string(name_buf.begin(), name_buf.end());
-
-    int num_embeddings;
-    int embedding_size;
-    ifs.read(reinterpret_cast<char*>(&num_embeddings), sizeof(int));
-    ifs.read(reinterpret_cast<char*>(&embedding_size), sizeof(int));
-    user_embedding.embedding_size = embedding_size;
-
-    std::vector<float> embeddings(num_embeddings * embedding_size);
-    ifs.read(reinterpret_cast<char*>(embeddings.data()),
-             embeddings.size() * sizeof(float));
-    user_embedding.embeddings = std::move(embeddings);
-    
-    ifs.close();
-}
-
-// Find all .bin files recursively in a directory
-void find_bin_files_recursive(const std::string& dir_path, std::vector<std::string>& bin_files) {
-    DIR* dir = opendir(dir_path.c_str());
-    if (dir == nullptr) {
-        std::cerr << "Failed to open directory: " << dir_path << std::endl;
-        return;
-    }
-
-    struct dirent* entry;
-    while ((entry = readdir(dir)) != nullptr) {
-        std::string name = entry->d_name;
-        
-        // Skip . and .. directories
-        if (name == "." || name == "..") {
-            continue;
-        }
-        
-        std::string full_path = dir_path + "/" + name;
-        
-        // Check if it's a directory
-        if (entry->d_type == DT_DIR) {
-            // Recursive call for subdirectories
-            find_bin_files_recursive(full_path, bin_files);
-        } 
-        // Check if it's a .bin file
-        else if (entry->d_type == DT_REG && name.size() > 4 && 
-                 name.substr(name.size() - 4) == ".bin") {
-            bin_files.push_back(full_path);
-        }
-    }
-    
-    closedir(dir);
-}
-
-std::vector<utils::UserEmbedding> load_all_embeddings(const std::string& base_directory) {
-    std::vector<utils::UserEmbedding> all_user_embeddings;
-    
-    // Find all .bin files recursively
-    std::vector<std::string> bin_files;
-    find_bin_files_recursive(base_directory, bin_files);
-    
-    std::cout << "Found " << bin_files.size() << " .bin files" << std::endl;
-    
-    // Load each .bin file
-    for (const auto& file_path : bin_files) {
-        try {
-            utils::UserEmbedding user_embedding;
-            load_embeddings_from_bin(file_path, user_embedding);
-            std::cout << "Loaded embedding from: " << file_path 
-                      << " (ID: " << user_embedding.id 
-                      << ", Name: " << user_embedding.name << ")" << std::endl;
-            all_user_embeddings.push_back(std::move(user_embedding));
-        } catch (const std::exception& e) {
-            std::cerr << "Failed to load embedding file " << file_path << ": " << e.what() << std::endl;
-        }
-    }
-    
-    return all_user_embeddings;
-}
-
 
 torch::Tensor cvMatToTensor(cv::Mat &mat)
 {
@@ -174,6 +84,6 @@ void printTensorInfo(torch::Tensor &tensor) {
     std::cout << "tensor device: " << tensor.device() << "\n";
     std::cout << "tensor shape: " << tensor.sizes() << std::endl;
     std::cout << tensor.is_contiguous() << std::endl;
-    std::cout << tensor.index({Slice(), 2, Slice(None, 5), Slice(None, 5)}) << std::endl;
+    // std::cout << tensor.index({Slice(), 2, Slice(None, 5), Slice(None, 5)}) << std::endl;
 }
 }
