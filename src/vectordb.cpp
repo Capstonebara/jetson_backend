@@ -60,6 +60,13 @@ int VectorDB::getRow() const {
 int VectorDB::getColumn() const {
     return m_embedding_size;
 }
+
+int VectorDB::getUserID(faiss::idx_t idx) {
+    const int user_idx = m_index_to_user_map[idx];
+    const User& user = m_users[user_idx];
+    return user.id;
+}
+
 std::string VectorDB::findName(faiss::idx_t idx) {
     const int user_idx = m_index_to_user_map[idx];
     std::cout << "User idx " << user_idx << std::endl;

@@ -15,6 +15,7 @@ public:
     VectorDB(const std::string &db_path, const int embedding_size=128);
     std::pair<faiss::idx_t, float> search(float *query_ptr) const;
     std::string findName(faiss::idx_t idx);
+    int getUserID(faiss::idx_t idx);
 
     int getRow() const;
     int getColumn() const;
