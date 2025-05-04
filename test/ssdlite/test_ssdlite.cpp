@@ -184,12 +184,11 @@ int main(int argc, const char *argv[]) {
                         if (similarity > extractor_threshold) {
                             bbox_color = cv::Scalar(0, 255, 0);
                             cv::rectangle(frame, box, bbox_color, 2);
-                            cv::Mat saved_image = frame(box);
 
                             // we will assume that our system has 1 device
                             if (logging) {
                                 logger.setDeviceID(device_id);
-                                logger.logFaceAndTime(index, saved_image);
+                                logger.logFaceAndTime(index, frame);
                                 logging = false;
                             }
 
