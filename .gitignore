@@ -42,3 +42,6 @@ __pycache__/
 embeddings/
 results/
 result/
+
+# Ignore agentic tool caches
+.antigravitycli/

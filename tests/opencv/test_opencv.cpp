@@ -1,15 +1,16 @@
-#include <opencv2/opencv.hpp>
-#include <opencv2/core/cuda.hpp>
-#include <iostream>
 #include <camera.h>
-#include <cli.h>
 #include <chrono>
+#include <cli.h>
+#include <iostream>
+#include <opencv2/core/cuda.hpp>
+#include <opencv2/opencv.hpp>
 
 using namespace cv;
 using namespace cv::cuda;
 
-int main(int argc, const char* argv[]) {
-// int main() {
+int main(int argc, const char *argv[])
+{
+    // int main() {
     // int device_count = cv::cuda::getCudaEnabledDeviceCount();
     // if (device_count == 0) {
     //     std::cout << "No CUDA-enabled devices found. OpenCV CUDA is NOT available.\n";
@@ -26,7 +27,8 @@ int main(int argc, const char* argv[]) {
     int camera_fps = std::stoi(args.get("--fps", "60"));
 
     VideoCapture cap;
-    if (!cap.open(camera::gstreamer_pipeline(camera_id, width, height, camera_fps), cv::CAP_GSTREAMER)) {
+    if (!cap.open(camera::gstreamer_pipeline(camera_id, width, height, camera_fps), cv::CAP_GSTREAMER))
+    {
         std::cout << "cook" << std::endl;
     }
 
@@ -35,18 +37,21 @@ int main(int argc, const char* argv[]) {
     double average_fps = 0.0;
     auto start_time = std::chrono::high_resolution_clock::now();
 
-    while (true) {
+    while (true)
+    {
         auto t1 = std::chrono::high_resolution_clock::now();
         cap >> frame;
-        if (frame.empty()) {
+        if (frame.empty())
+        {
             std::cout << "Error when capturing frame" << std::endl;
             break;
         }
 
         frame_counter++;
         auto now = std::chrono::high_resolution_clock::now();
-        double elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(now -start_time).count();
-        if (elapsed >= 1000) {
+        double elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(now - start_time).count();
+        if (elapsed >= 1000)
+        {
             average_fps = frame_counter * 1000.0 / elapsed;
             frame_counter = 0;
             start_time = now;
@@ -56,9 +61,9 @@ int main(int argc, const char* argv[]) {
         stream << std::fixed << std::setprecision(2) << average_fps;
         putText(frame, stream.str(), cv::Point(10, 30), cv::FONT_HERSHEY_SIMPLEX, 0.7, cv::Scalar(0, 255, 0), 2);
 
-
         imshow(":))", frame);
-        if (waitKey(1) == 27) break;
+        if (waitKey(1) == 27)
+            break;
 
         auto t2 = std::chrono::high_resolution_clock::now();
         double latency = std::chrono::duration_cast<std::chrono::milliseconds>(t2 - t1).count();
@@ -82,5 +87,3 @@ int main(int argc, const char* argv[]) {
     // std::cout << getBuildInformation();
     // }
 }
-
-

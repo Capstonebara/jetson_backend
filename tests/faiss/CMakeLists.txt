@@ -3,8 +3,8 @@ project(test_faiss)
 
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra -Werror -pedantic")
 
-set(CMAKE_PREFIX_PATH 
-    "$ENV{CONDA_PREFIX}/lib/python3.6/site-packages/torch/share/cmake/Torch/" 
+set(CMAKE_PREFIX_PATH
+    "$ENV{CONDA_PREFIX}/lib/python3.6/site-packages/torch/share/cmake/Torch/"
     # "/home/jetson/faiss/build/"
 )
 
@@ -14,11 +14,11 @@ find_package(TorchVision REQUIRED)
 find_package(OpenMP REQUIRED)
 find_library(FAISS_LIB NAMES faiss PATHS /home/jetson/faiss/build/faiss/ )
 
-include_directories("../../include" 
+include_directories("../../include"
     # "/home/jetson/faiss/"
 )
 file(GLOB_RECURSE SRC_FILES "../../src/*.cpp")
-add_executable(test_faiss 
+add_executable(test_faiss
     ${SRC_FILES}
     test_faiss.cpp
 )

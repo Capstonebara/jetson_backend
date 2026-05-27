@@ -1,0 +1,234 @@
+{
+  "version": 3,
+  "cmakeMinimumRequired": {
+    "major": 3,
+    "minor": 19,
+    "patch": 0
+  },
+  "configurePresets": [
+    {
+      "name": "base_native_host",
+      "hidden": true,
+      "description": "Template for native build (x86_64)",
+      "cacheVariables": {
+        "CMAKE_PREFIX_PATH": "/opt/cereal/x86_64-linux-gnu/",
+        "CMAKE_EXPORT_COMPILE_COMMANDS": "ON"
+      },
+      "warnings": {
+        "dev": false
+      }
+    },
+    {
+      "name": "base_cross_target",
+      "hidden": true,
+      "description": "Template for cross_compile (aarch64) in Docker/CI",
+      "toolchainFile": "${sourceDir}/toolchains/aarch64_toolchain.cmake",
+      "cacheVariables": {
+        "BUILD_TESTING": "OFF"
+      },
+      "warnings": {
+        "dev": false
+      }
+    },
+    {
+      "name": "base_native_target",
+      "hidden": true,
+      "description": "Template for native build (aarch64)",
+      "cacheVariables": {
+        "CMAKE_PREFIX_PATH": "/opt/cereal/aarch64-linux-gnu/",
+        "CMAKE_EXPORT_COMPILE_COMMANDS": "ON"
+      },
+      "warnings": {
+        "dev": false
+      }
+    },
+    {
+      "name": "native_host_debug_ninja",
+      "displayName": "Native Host Debug (Ninja, x86_64)",
+      "inherits": "base_native_host",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/native_host_debug_ninja",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug"
+      }
+    },
+    {
+      "name": "native_host_debug_make",
+      "displayName": "Native Host Debug (Make, x86_64)",
+      "inherits": "base_native_host",
+      "generator": "Unix Makefiles",
+      "binaryDir": "${sourceDir}/build/native_host_debug_make",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug"
+      }
+    },
+    {
+      "name": "native_host_release_ninja",
+      "displayName": "Native Host Release (Ninja, x86_64)",
+      "inherits": "base_native_host",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/native_host_release_ninja",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release"
+      }
+    },
+    {
+      "name": "native_host_release_make",
+      "displayName": "Native Host Release (Make, x86_64)",
+      "inherits": "base_native_host",
+      "generator": "Unix Makefiles",
+      "binaryDir": "${sourceDir}/build/native_host_release_make",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release"
+      }
+    },
+    {
+      "name": "cross_target_debug_ninja",
+      "displayName": "Cross_Compile Debug (Ninja, aarch64)",
+      "inherits": "base_cross_target",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/cross_target_debug_ninja",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug"
+      }
+    },
+    {
+      "name": "cross_target_debug_make",
+      "displayName": "Cross_Compile Debug (Make, aarch64)",
+      "inherits": "base_cross_target",
+      "generator": "Unix Makefiles",
+      "binaryDir": "${sourceDir}/build/cross_target_debug_make",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug"
+      }
+    },
+    {
+      "name": "cross_target_release_ninja",
+      "displayName": "Cross_Compile Release (Ninja, aarch64)",
+      "inherits": "base_cross_target",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/cross_target_release_ninja",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release"
+      }
+    },
+    {
+      "name": "cross_target_release_make",
+      "displayName": "Cross_Compile Release (Make, aarch64)",
+      "inherits": "base_cross_target",
+      "generator": "Unix Makefiles",
+      "binaryDir": "${sourceDir}/build/cross_target_release_make",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release"
+      }
+    },
+    {
+      "name": "native_target_debug_ninja",
+      "displayName": "On_Target Debug (Ninja, aarch64)",
+      "inherits": "base_native_target",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/native_target_debug_ninja",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug"
+      }
+    },
+    {
+      "name": "native_target_debug_make",
+      "displayName": "On_Target Debug (Make, aarch64)",
+      "inherits": "base_native_target",
+      "generator": "Unix Makefiles",
+      "binaryDir": "${sourceDir}/build/native_target_debug_make",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug"
+      }
+    },
+    {
+      "name": "native_target_release_ninja",
+      "displayName": "On_Target Release (Ninja, aarch64)",
+      "inherits": "base_native_target",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/native_target_release_ninja",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release"
+      }
+    },
+    {
+      "name": "native_target_release_make",
+      "displayName": "On_Target Release (Make, aarch64)",
+      "inherits": "base_native_target",
+      "generator": "Unix Makefiles",
+      "binaryDir": "${sourceDir}/build/native_target_release_make",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release"
+      }
+    },
+    {
+      "name": "ci_build",
+      "displayName": "Build set up for CI",
+      "inherits": "base_cross_target",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/ci_build",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "CMAKE_EXPORT_COMPILE_COMMANDS": "ON"
+      },
+      "environment": {
+        "IS_CI": "TRUE"
+      }
+    }
+  ],
+  "buildPresets": [
+    {
+      "name": "native_host_debug_ninja",
+      "configurePreset": "native_host_debug_ninja"
+    },
+    {
+      "name": "native_host_debug_make",
+      "configurePreset": "native_host_debug_make"
+    },
+    {
+      "name": "native_host_release_ninja",
+      "configurePreset": "native_host_release_ninja"
+    },
+    {
+      "name": "native_host_release_make",
+      "configurePreset": "native_host_release_make"
+    },
+    {
+      "name": "cross_target_debug_ninja",
+      "configurePreset": "cross_target_debug_ninja"
+    },
+    {
+      "name": "cross_target_debug_make",
+      "configurePreset": "cross_target_debug_make"
+    },
+    {
+      "name": "cross_target_release_ninja",
+      "configurePreset": "cross_target_release_ninja"
+    },
+    {
+      "name": "cross_target_release_make",
+      "configurePreset": "cross_target_release_make"
+    },
+    {
+      "name": "native_target_debug_ninja",
+      "configurePreset": "native_target_debug_ninja"
+    },
+    {
+      "name": "native_target_debug_make",
+      "configurePreset": "native_target_debug_make"
+    },
+    {
+      "name": "native_target_release_ninja",
+      "configurePreset": "native_target_release_ninja"
+    },
+    {
+      "name": "native_target_release_make",
+      "configurePreset": "native_target_release_make"
+    },
+    {
+      "name": "ci_build",
+      "configurePreset": "ci_build"
+    }
+  ]
+}

@@ -7,9 +7,9 @@ if(NOT CMAKE_BUILD_TYPE)
 endif()
 
 # set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra -Wshadow -Werror -pedantic")
-set(CMAKE_PREFIX_PATH 
-    "$ENV{CONDA_PREFIX}/lib/python3.6/site-packages/torch/share/cmake/Torch/" 
-    # "$ENV{CONDA_PREFIX}/capstone/share/cmake/TorchVision/" 
+set(CMAKE_PREFIX_PATH
+    "$ENV{CONDA_PREFIX}/lib/python3.6/site-packages/torch/share/cmake/Torch/"
+    # "$ENV{CONDA_PREFIX}/capstone/share/cmake/TorchVision/"
 )
 
 # file(GLOB_RECURSE SRC_FILES "../../src/.cpp")

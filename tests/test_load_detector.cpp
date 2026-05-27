@@ -2,7 +2,8 @@
 #include <torchvision/vision.h>
 #include <utils/cli.h>
 
-int main(int argc, const char* argv[]) {
+int main(int argc, const char *argv[])
+{
     cli::Args args(argc, argv);
     cli::list(args);
     std::string binary_name = args.get("binary_name");

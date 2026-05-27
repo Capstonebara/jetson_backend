@@ -5,7 +5,7 @@ import torchvision
 import numpy as np
 
 img = cv2.imread("/home/jetson/FaceRecognitionSystem/jetson/backend/assets/Members.png")
-img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)  
+img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
 img = cv2.resize(img, (320, 320), interpolation=cv2.INTER_LINEAR)
 tensor = torch.tensor(img, dtype=torch.float32).permute(2, 0, 1).contiguous().unsqueeze(0)
 print(tensor.dtype)

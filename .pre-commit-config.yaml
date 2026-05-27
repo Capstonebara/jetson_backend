@@ -1,0 +1,56 @@
+exclude: ^(third_party|scripts|config)/
+default_install_hook_types:
+  - pre-commit
+  - commit-msg
+
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: check-added-large-files
+        stages: [pre-commit]
+      - id: trailing-whitespace
+        stages: [pre-commit]
+      - id: check-json
+        stages: [pre-commit]
+      - id: check-merge-conflict
+        stages: [pre-commit]
+      - id: check-toml
+        stages: [pre-commit]
+      - id: check-yaml
+        stages: [pre-commit]
+      - id: check-xml
+        stages: [pre-commit]
+      - id: end-of-file-fixer
+        stages: [pre-commit]
+
+  - repo: https://github.com/pocc/pre-commit-hooks
+    rev: v1.3.5
+    hooks:
+      - id: clang-format
+        args: ["-i"]
+        stages: [pre-commit]
+
+  - repo: local
+    hooks:
+      - id: clang-tidy
+        name: clang-tidy
+        entry: scripts/run-clang-tidy.py
+        language: script
+        args: [
+          "-p=build",
+          "-warnings-as-errors=*",
+          "-config-file=./.clang-tidy",
+          "-header-filter=.*",
+          "-exclude-header-filter=.*third_party/.*",
+          "-exclude=^third_party/",
+          "-quiet",
+        ]
+        stages: [pre-commit]
+
+
+  - repo: https://github.com/commitizen-tools/commitizen
+    rev: v4.9.1
+    hooks:
+      - id: commitizen
+        stages: [commit-msg]
