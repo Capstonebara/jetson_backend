@@ -1,34 +1,40 @@
-#include <detector.h>
+#include "detecting/detector.h"
+
 const std::vector<double> Detector::m_mean{0.485, 0.456, 0.406};
 const std::vector<double> Detector::m_std{0.229, 0.224, 0.225};
 
-Detector::Detector(std::string &model_path) {
-    try {
+Detector::Detector(std::string &model_path)
+{
+    try
+    {
         m_detector = torch::jit::load(model_path);
-
-    } catch (const c10::Error &e) {
+    }
+    catch (const c10::Error &e)
+    {
         std::cerr << "Can't load detector" << std::endl;
     }
 
     m_detector.eval();
 
     bool is_on_cuda = false;
-    for (const auto& param : m_detector.parameters()) {
-        if (param.device().is_cuda()) {
+    for (const auto &param : m_detector.parameters())
+    {
+        if (param.device().is_cuda())
+        {
             is_on_cuda = true;
             break;
         }
     }
-    
 
-    if (is_on_cuda && torch::cuda::is_available()) {
+    if (is_on_cuda && torch::cuda::is_available())
+    {
         // dung non-blocking technique va  pin memory
         m_device = torch::kCUDA;
-    } 
-
+    }
 }
 
-torch::Tensor Detector::inference(const torch::Tensor &input, const float threshold) {
+torch::Tensor Detector::inference(const torch::Tensor &input, const float threshold)
+{
 
     std::vector<torch::IValue> inputs;
     inputs.push_back(input.to(m_device));
@@ -47,7 +53,8 @@ torch::Tensor Detector::inference(const torch::Tensor &input, const float thresh
     return selected_boxes;
 }
 
-torch::Tensor Detector::preprocess(cv::Mat &input, const int transforms_height, const int transforms_width) {
+torch::Tensor Detector::preprocess(cv::Mat &input, const int transforms_height, const int transforms_width)
+{
     return utils::transforms(input, cv::Size(transforms_height, transforms_width), m_mean, m_std);
 }
 

@@ -1,36 +1,41 @@
-#include <extractor.h>
-#include <utils.h>
+#include "extracting/extractor.h"
+#include "utils/utils.h"
 
 const std::vector<double> Extractor::m_mean{0.5, 0.5, 0.5};
 const std::vector<double> Extractor::m_std{0.5, 0.5, 0.5};
 
-Extractor::Extractor(std::string &model_path){
-    try {
+Extractor::Extractor(std::string &model_path)
+{
+    try
+    {
         m_extractor = torch::jit::load(model_path);
-
-    } catch (const c10::Error &e) {
+    }
+    catch (const c10::Error &e)
+    {
         std::cerr << "Can't load detector" << std::endl;
     }
 
     m_extractor.eval();
 
     bool is_on_cuda = false;
-    for (const auto& param : m_extractor.parameters()) {
-        if (param.device().is_cuda()) {
+    for (const auto &param : m_extractor.parameters())
+    {
+        if (param.device().is_cuda())
+        {
             is_on_cuda = true;
             break;
         }
     }
-    
 
-    if (is_on_cuda && torch::cuda::is_available()) {
+    if (is_on_cuda && torch::cuda::is_available())
+    {
         // dung non-blocking technique va  pin memory
         m_device = torch::kCUDA;
-    } 
-
+    }
 }
 
-torch::Tensor Extractor::inference(const torch::Tensor &input) {
+torch::Tensor Extractor::inference(const torch::Tensor &input)
+{
 
     std::vector<torch::IValue> inputs;
     inputs.push_back(input.to(m_device));
@@ -39,7 +44,8 @@ torch::Tensor Extractor::inference(const torch::Tensor &input) {
     return embedding;
 }
 
-torch::Tensor Extractor::preprocess(cv::Mat &roi) {
+torch::Tensor Extractor::preprocess(cv::Mat &roi)
+{
     return utils::transforms(roi, cv::Size(m_transforms_height, m_transforms_width), m_mean, m_std);
 }
 
